@@ -1,0 +1,909 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+public class AggressionCatalyst : Catalyst, ISupplement
+    {
+        public AggressionCatalyst()
+            :base(0,0,3)
+        {
+
+        }
+
+        public override void ReactTo(ISupplement otherSupplement)
+        {
+
+        }
+    }
+
+    public abstract class Catalyst : ISupplement
+    {
+        protected int powerEffect;
+        protected int healthEffect;
+        protected int aggressionEffect;
+
+        protected Catalyst(int powerEffect, int healthEffect, int aggressionEffect)
+        {
+            this.powerEffect = powerEffect;
+            this.healthEffect = healthEffect;
+            this.aggressionEffect = aggressionEffect;
+        }
+
+        public int PowerEffect
+        {
+            get { return this.powerEffect; }
+        }
+
+        public int HealthEffect
+        {
+            get { return this.healthEffect; }
+        }
+
+        public int AggressionEffect
+        {
+            get { return this.aggressionEffect; }
+        }
+
+        public abstract void ReactTo(ISupplement otherSupplement);
+    }
+
+
+    public class Dog : Unit
+    {
+        const int DogPower = 5;
+        const int DogAggression = 2;
+        const int DogHealth = 4;
+
+        public Dog(string id) :
+            base(id, UnitClassification.Biological, Dog.DogHealth, Dog.DogPower, Dog.DogAggression)
+        {
+        }
+    }
+
+    public class HealthCatalyst : Catalyst, ISupplement
+    {
+        public HealthCatalyst()
+            :base(0,3,0)
+        {
+
+        }
+
+        public override void ReactTo(ISupplement otherSupplement)
+        {
+
+        }
+    }
+
+    public class HoldingExtendedPen : HoldingPen
+    {
+        private List<Unit> containedUnits = new List<Unit>();
+
+        protected override void DispatchCommand(string[] commandWords)
+        {
+            switch (commandWords[0])
+            {
+                case "insert":
+                    this.ExecuteInsertUnitCommand(commandWords);
+                    break;
+                case "proceed":
+                    this.ExecuteProceedSingleIterationCommand();
+                    break;
+                case "supplement":
+                    this.ExecuteAddSupplementCommand(commandWords);
+                    break;
+                case "status":
+                    this.ExecutePrintStatusCommand();
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        private void ExecutePrintStatusCommand()
+        {
+            foreach (var unit in this.containedUnits)
+            {
+                Console.WriteLine(unit);
+            }
+        }
+
+        protected override void ExecuteProceedSingleIterationCommand()
+        {
+            var containedUnitsInfo = this.containedUnits.Select((unit) => unit.Info);
+
+            IEnumerable<Interaction> requestedInteractions =
+                from unit in this.containedUnits
+                select unit.DecideInteraction(containedUnitsInfo);
+
+            requestedInteractions = requestedInteractions.Where((interaction) => interaction != Interaction.PassiveInteraction);
+
+            foreach (var interaction in requestedInteractions)
+            {
+                this.ProcessSingleInteraction(interaction);
+            }
+
+            this.containedUnits.RemoveAll((unit) => unit.IsDestroyed);
+        }
+
+        protected override void ExecuteAddSupplementCommand(string[] commandWords)
+        {
+            string supplementType = commandWords[1];
+            string targetUnitId = commandWords[2];
+            IEnumerable<Unit> units;
+
+            switch (supplementType)
+            {
+                case "PowerCatalyst":
+                    units = containedUnits.Where(u => u.Id == targetUnitId);
+                    foreach (var unit in units)
+                    {
+                        unit.AddSupplement(new PowerCatalyst());
+                    }
+                    break;
+                case "HealthCatalyst":
+                    units = containedUnits.Where(u => u.Id == targetUnitId);
+                    foreach (var unit in units)
+                    {
+                        unit.AddSupplement(new HealthCatalyst());
+                    }
+                    break;
+                case "AggressionCatalyst":
+                    units = containedUnits.Where(unit => unit.Id == targetUnitId);
+                    foreach (var unit in units)
+                    {
+                        unit.AddSupplement(new AggressionCatalyst());
+                    }
+                    break;
+                case "Weapon":
+                    units = containedUnits.Where(unit => unit.Id == targetUnitId);
+                    foreach (var unit in units)
+                    {
+                        unit.AddSupplement(new Weapon());
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        protected override void ExecuteInsertUnitCommand(string[] commandWords)
+        {
+            switch (commandWords[1])
+            {
+                case "Dog":
+                    var dog = new Dog(commandWords[2]);
+                    this.InsertUnit(dog);
+                    break;
+                case "Human":
+                    var human = new Human(commandWords[2]);
+                    this.InsertUnit(human);
+                    break;
+                case "Tank":
+                    var tank = new Tank(commandWords[2]);
+                    this.InsertUnit(tank);
+                    break;
+                case "Marine":
+                    var marine = new Marine(commandWords[2]);
+                    this.InsertUnit(marine);
+                    break;
+                case "Parasite":
+                    var parasite = new Parasite(commandWords[2]);
+                    this.InsertUnit(parasite);
+                    break;
+                case "Queen":
+                    var queen = new Queen(commandWords[2]);
+                    this.InsertUnit(queen);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        protected override void ProcessSingleInteraction(Interaction interaction)
+        {
+            Unit targetUnit;
+            Unit sourceUnit;
+            switch (interaction.InteractionType)
+            {
+                case InteractionType.Attack:
+                    targetUnit = this.GetUnit(interaction.TargetUnit);
+
+                    targetUnit.DecreaseBaseHealth(interaction.SourceUnit.Power);
+                    break;
+                case InteractionType.Infest:
+                    targetUnit = this.GetUnit(interaction.TargetUnit);
+                    sourceUnit = this.GetUnit(interaction.SourceUnit);
+
+                    if (sourceUnit.UnitClassification
+                        == InfestationRequirements.
+                           RequiredClassificationToInfest(targetUnit.UnitClassification))
+                    {
+                        targetUnit.AddSupplement(new InfestationSpores());
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        protected new Unit GetUnit(string unitId)
+        {
+            return this.containedUnits.FirstOrDefault((unit) => unit.Id == unitId);
+        }
+
+        protected new Unit GetUnit(UnitInfo unitInfo)
+        {
+            //return this.GetUnit(unitInfo.Id);
+            return this.containedUnits.FirstOrDefault((unit) => unit.Id == unitInfo.Id);
+        }
+
+        protected new void InsertUnit(Unit unit)
+        {
+            this.containedUnits.Add(unit);
+        }
+    }
+
+
+    public class HoldingPen
+    {
+        private List<Unit> containedUnits = new List<Unit>();
+
+        public void ParseCommand(string command)
+        {
+            string[] commandWordSeparators = new string[] { " " };
+
+            string[] commandWords = command.Split(commandWordSeparators, StringSplitOptions.RemoveEmptyEntries);
+
+            DispatchCommand(commandWords);
+
+        }
+
+        protected virtual void DispatchCommand(string[] commandWords)
+        {
+            switch (commandWords[0])
+            {
+                case "insert":
+                    this.ExecuteInsertUnitCommand(commandWords);
+                    break;
+                case "proceed":
+                    this.ExecuteProceedSingleIterationCommand();
+                    break;
+                case "supplement":
+                    this.ExecuteAddSupplementCommand(commandWords);
+                    break;
+                case "status":
+                    this.ExecutePrintStatusCommand();
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        private void ExecutePrintStatusCommand()
+        {
+            foreach (var unit in this.containedUnits)
+            {
+                Console.WriteLine(unit);
+            }
+        }
+
+        protected virtual void ExecuteAddSupplementCommand(string[] commandWords)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected virtual void ExecuteProceedSingleIterationCommand()
+        {
+            var containedUnitsInfo = this.containedUnits.Select((unit) => unit.Info);
+
+            IEnumerable<Interaction> requestedInteractions =
+                from unit in this.containedUnits
+                select unit.DecideInteraction(containedUnitsInfo);
+
+            requestedInteractions = requestedInteractions.Where((interaction) => interaction != Interaction.PassiveInteraction);
+
+            foreach (var interaction in requestedInteractions)
+            {
+                this.ProcessSingleInteraction(interaction);
+            }
+
+            this.containedUnits.RemoveAll((unit) => unit.IsDestroyed);
+        }
+
+        protected virtual void ProcessSingleInteraction(Interaction interaction)
+        {
+            switch (interaction.InteractionType)
+            {
+                case InteractionType.Attack:
+                    Unit targetUnit = this.GetUnit(interaction.TargetUnit);
+
+                    targetUnit.DecreaseBaseHealth(interaction.SourceUnit.Power);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        protected Unit GetUnit(string unitId)
+        {
+            return this.containedUnits.FirstOrDefault((unit) => unit.Id == unitId);
+        }
+
+        protected Unit GetUnit(UnitInfo unitInfo)
+        {
+            return this.GetUnit(unitInfo.Id);
+            //return this.containedUnits.FirstOrDefault((unit) => unit.Id == unitInfo.Id);
+        }
+
+        protected virtual void ExecuteInsertUnitCommand(string[] commandWords)
+        {
+            switch (commandWords[1])
+            {
+                case "Dog":
+                    var dog = new Dog(commandWords[2]);
+                    this.InsertUnit(dog);
+                    break;
+                case "Human":
+                    var human = new Human(commandWords[2]);
+                    this.InsertUnit(human);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        protected void InsertUnit(Unit unit)
+        {
+            this.containedUnits.Add(unit);
+        }
+    }
+
+
+    public class Human : Unit
+    {
+        public const int HumanPower = 4;
+        public const int HumanAggression = 1;
+        public const int HumanHealth = 10;
+
+        public Human(string id)
+            : base(id, UnitClassification.Biological, Human.HumanHealth, Human.HumanPower, Human.HumanAggression)
+        {
+        }
+    }
+
+
+    public static class InfestationRequirements
+    {
+        public static UnitClassification RequiredClassificationToInfest(UnitClassification targetUnit)
+        {
+            switch (targetUnit)
+            {
+                case UnitClassification.Biological:
+                    return UnitClassification.Biological;
+                    
+                case UnitClassification.Mechanical:
+                    return UnitClassification.Psionic;
+                    
+                case UnitClassification.Psionic:
+                    return UnitClassification.Psionic;
+                    
+                default:
+                    throw new InvalidOperationException("Unknown unit classification: " + targetUnit);
+            }
+        }
+    }
+
+    public class InfestationSpores : ISupplement
+    {
+        private int powerEfect;
+        private int healthEffect;
+        private int aggressionEffect;
+
+        public InfestationSpores()
+        {
+            this.powerEfect = -1;
+            this.healthEffect = 0;
+            this.aggressionEffect = 20;
+        }
+
+        public int PowerEffect
+        {
+            get { return this.powerEfect; }
+        }
+
+        public int HealthEffect
+        {
+            get { return this.healthEffect; }
+        }
+
+        public int AggressionEffect
+        {
+            get { return this.aggressionEffect; }
+        }
+        public void ReactTo(ISupplement otherSupplement)
+        {
+            if (otherSupplement is InfestationSpores)
+            {
+                this.powerEfect = 0;
+                this.healthEffect = 0;
+                this.aggressionEffect = 0;
+            }
+        }
+    }
+
+
+    public class Interaction
+    {
+        public const Interaction PassiveInteraction = null;
+
+        public UnitInfo SourceUnit { get; private set; }
+        public UnitInfo TargetUnit { get; private set; }
+        public InteractionType InteractionType { get; private set; }
+
+        public Interaction(UnitInfo sourceUnitInfo, UnitInfo targetUnitInfo, InteractionType type)
+        {
+            this.SourceUnit = sourceUnitInfo;
+            this.TargetUnit = targetUnitInfo;
+            this.InteractionType = type;
+        }
+    }
+
+
+    public enum InteractionType
+    {
+        Attack,
+        Infest,
+    }
+
+
+    public interface ISupplement
+    {
+        void ReactTo(ISupplement otherSupplement);
+        int PowerEffect { get; }
+        int HealthEffect { get; }
+        int AggressionEffect { get; }
+    }
+
+    public class Marine : Human
+    {
+        public Marine(string id)
+            :base(id)
+        {
+            this.AddSupplement(new WeaponrySkill());
+        }
+
+        protected override UnitInfo GetOptimalAttackableUnit(IEnumerable<UnitInfo> attackableUnits)
+        {
+            //This method finds the unit with the highest health and attacks it
+            UnitInfo optimalAttackableUnit = new UnitInfo(null, UnitClassification.Unknown, int.MinValue, 0, 0);
+
+            foreach (var unit in attackableUnits)
+            {
+                if (unit.Health > optimalAttackableUnit.Health)
+                {
+                    optimalAttackableUnit = unit;
+                }
+            }
+
+            return optimalAttackableUnit;
+        }
+    }
+
+    public class Parasite : Unit
+    {
+        public Parasite(string id)
+            : base(id, UnitClassification.Biological, 1, 1, 1)
+        {
+
+        }
+
+        public override Interaction DecideInteraction(IEnumerable<UnitInfo> units)
+        {
+            IEnumerable<UnitInfo> attackableUnits = units.Where((unit) => this.CanAttackUnit(unit));
+
+            UnitInfo optimalAttackableUnit = GetOptimalAttackableUnit(attackableUnits);
+
+            if (optimalAttackableUnit.Id != null)
+            {
+                return new Interaction(new UnitInfo(this), optimalAttackableUnit, InteractionType.Infest);
+            }
+
+            return Interaction.PassiveInteraction;
+        }
+
+        protected override UnitInfo GetOptimalAttackableUnit(IEnumerable<UnitInfo> attackableUnits)
+        {
+            UnitInfo optimalAttackableUnit = new UnitInfo(null, UnitClassification.Unknown, int.MaxValue, 0, 0);
+
+            foreach (var unit in attackableUnits)
+            {
+                if (unit.Health < optimalAttackableUnit.Health)
+                {
+                    optimalAttackableUnit = unit;
+                }
+            }
+
+            return optimalAttackableUnit;
+        }
+
+        protected override bool CanAttackUnit(UnitInfo unit)
+        {
+            bool attackUnit = false;
+            if (this.Id != unit.Id)
+            {
+                attackUnit = true;
+            }
+
+            return attackUnit;
+        }
+    }
+
+    public class PowerCatalyst : Catalyst, ISupplement
+    {
+        public PowerCatalyst()
+            :base(3,0,0)
+        {
+
+        }
+
+        public override void ReactTo(ISupplement otherSupplement)
+        {
+            
+        }
+    }
+
+
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            HoldingPen pen = InitializePen();
+            StartOperations(pen);
+        }
+
+        private static void StartOperations(HoldingPen pen)
+        {
+            string input = Console.ReadLine();
+            while (input != "end")
+            {
+                pen.ParseCommand(input);
+                input = Console.ReadLine();
+            }
+        }
+
+        private static HoldingPen InitializePen()
+        {
+            return new HoldingExtendedPen();
+        }
+    }
+
+    public class Queen : Unit
+    {
+        public Queen(string id)
+            : base(id, UnitClassification.Psionic, 30, 1, 1)
+        {
+
+        }
+
+        public override Interaction DecideInteraction(IEnumerable<UnitInfo> units)
+        {
+            IEnumerable<UnitInfo> attackableUnits = units.Where((unit) => this.CanAttackUnit(unit));
+
+            UnitInfo optimalAttackableUnit = GetOptimalAttackableUnit(attackableUnits);
+
+            if (optimalAttackableUnit.Id != null)
+            {
+                return new Interaction(new UnitInfo(this), optimalAttackableUnit, InteractionType.Infest);
+            }
+
+            return Interaction.PassiveInteraction;
+        }
+
+        protected override UnitInfo GetOptimalAttackableUnit(IEnumerable<UnitInfo> attackableUnits)
+        {
+            UnitInfo optimalAttackableUnit = new UnitInfo(null, UnitClassification.Unknown, int.MinValue, 0, 0);
+
+            foreach (var unit in attackableUnits)
+            {
+                if (unit.Health > optimalAttackableUnit.Health)
+                {
+                    optimalAttackableUnit = unit;
+                }
+            }
+
+            return optimalAttackableUnit;
+        }
+
+        protected override bool CanAttackUnit(UnitInfo unit)
+        {
+            bool attackUnit = false;
+            if (this.Id != unit.Id)
+            {
+                attackUnit = true;
+            }
+
+            return attackUnit;
+        }
+    }
+
+    public class Tank : Unit
+    {
+        public Tank(string id)
+            : base(id, UnitClassification.Mechanical, 20, 25, 25)
+        {
+
+        }
+    }
+
+
+    abstract public class Unit
+    {
+        public string Id { get; private set; }
+
+        public UnitClassification UnitClassification { get; private set; }
+
+        private int baseHealth;
+        private int basePower;
+        private int baseAggression;
+
+        public virtual int Health 
+        {
+            get
+            {
+                int supplementsBonus = 0;
+                foreach (var supplement in this.supplements)
+                {
+                    supplementsBonus += supplement.HealthEffect;
+                }
+
+                return this.baseHealth + supplementsBonus;
+            }
+        }
+        public virtual int Power
+        {
+            get
+            {
+                int supplementsBonus = 0;
+                foreach (var supplement in this.supplements)
+                {
+                    supplementsBonus += supplement.PowerEffect;
+                }
+
+                return this.basePower + supplementsBonus;
+            }
+        }
+        public virtual int Aggression
+        {
+            get
+            {
+                int supplementsBonus = 0;
+                foreach (var supplement in this.supplements)
+                {
+                    supplementsBonus += supplement.AggressionEffect;
+                }
+
+                return this.baseAggression + supplementsBonus;
+            }
+        }
+
+        private ICollection<ISupplement> supplements;
+        //public ICollection<ISupplement> Supplements
+        //{
+        //    get
+        //    {
+        //        if (this.supplements == null)
+        //        {
+        //            this.supplements = new List<ISupplement>();
+        //        }
+        //        return this.supplements;
+        //    }
+
+        //    private set
+        //    {
+        //        this.supplements = value;
+        //    }
+        //}
+
+        public Unit(string id, UnitClassification unitType, int health, int power, int aggression)
+        {
+            this.Id = id;
+            this.UnitClassification = unitType;
+
+            this.baseHealth = health;
+            this.basePower = power;
+            this.baseAggression = aggression;
+
+            this.supplements = new List<ISupplement>();
+        }
+
+        public void DecreaseBaseHealth(int quantity)
+        {
+            this.baseHealth -= quantity;
+        }
+
+        public virtual void AddSupplement(ISupplement newSupplement)
+        {
+            foreach (var supplement in this.supplements)
+            {
+                newSupplement.ReactTo(supplement);
+            }
+
+            this.supplements.Add(newSupplement);
+        }
+
+        public override string ToString()
+        {
+            StringBuilder supplementsBuilder = new StringBuilder();
+            foreach (var supplement in this.supplements)
+            {
+                supplementsBuilder.Append(supplement.GetType().Name + ", ");
+            }
+
+            if (supplementsBuilder.Length != 0)
+            {
+                supplementsBuilder.Remove(supplementsBuilder.Length - ", ".Length, ", ".Length); //removing the excess comma-space, coming from the foreach loop above (", ")
+            }
+            string unitSignature = this.GetType().Name + " " + this.Id + " (" + this.UnitClassification + ")";
+
+            return String.Format("{0} [Health: {1}, Power: {2}, Aggression: {3}, Supplements: [{4}]]",
+                unitSignature, this.Health, this.Power, this.Aggression, supplementsBuilder.ToString());
+        }
+
+        public virtual Interaction DecideInteraction(IEnumerable<UnitInfo> units)
+        {
+            IEnumerable<UnitInfo> attackableUnits = units.Where((unit) => this.CanAttackUnit(unit));
+
+            UnitInfo optimalAttackableUnit = GetOptimalAttackableUnit(attackableUnits);
+
+            if (optimalAttackableUnit.Id != null)
+            {
+                return new Interaction(new UnitInfo(this), optimalAttackableUnit, InteractionType.Attack);
+            }
+
+            return Interaction.PassiveInteraction;
+        }
+
+        protected virtual UnitInfo GetOptimalAttackableUnit(IEnumerable<UnitInfo> attackableUnits)
+        {
+            //This method finds the unit with the least power and attacks it
+            UnitInfo optimalAttackableUnit = new UnitInfo(null, UnitClassification.Unknown, 0, int.MaxValue, 0);
+
+            foreach (var unit in attackableUnits)
+            {
+                if (unit.Power < optimalAttackableUnit.Power)
+                {
+                    optimalAttackableUnit = unit;
+                }
+            }
+
+            return optimalAttackableUnit;
+        }
+
+        protected virtual bool CanAttackUnit(UnitInfo unit)
+        {
+            bool attackUnit = false;
+            if (this.Id != unit.Id)
+            {
+                if (this.Aggression >= unit.Power)
+                {
+                    attackUnit = true;
+                }
+            }
+            return attackUnit;
+        }
+
+        public UnitInfo Info
+        {
+            get { return new UnitInfo(this); }
+        }
+
+        public virtual bool IsDestroyed
+        {
+            get
+            {
+                return this.Health <= 0;
+            }
+        }
+    }
+
+
+    public enum UnitClassification
+    {
+        Biological,
+        Mechanical,
+        Psionic,
+        Unknown
+    }
+
+
+    public struct UnitInfo
+    {
+        public string Id { get; private set; }
+
+        public int Health { get; private set; }
+
+        public int Power { get; private set; }
+
+        public int Aggression { get; private set; }
+
+        public UnitClassification UnitClassification { get; private set; }
+
+        public UnitInfo(string id, UnitClassification unitType, int health, int power, int aggression) : this()
+        {
+            this.Id = id;
+            this.Health = health;
+            this.UnitClassification = unitType;
+            this.Power = power;
+            this.Aggression = aggression;
+        }
+
+        public UnitInfo(Unit unit) 
+            : this(unit.Id, unit.UnitClassification, unit.Health, unit.Power, unit.Aggression)
+        {
+        }
+    }
+
+    public class Weapon : ISupplement
+    {
+        private int powerEffect;
+        private int healthEffect;
+        private int aggressionEffect;
+
+        public Weapon()
+        {
+            this.powerEffect = 0;
+            this.healthEffect = 0;
+            this.aggressionEffect = 0;
+        }
+
+        public int PowerEffect
+        {
+            get { return this.powerEffect; }
+        }
+
+        public int HealthEffect
+        {
+            get { return this.healthEffect; }
+        }
+
+        public int AggressionEffect
+        {
+            get { return this.aggressionEffect; }
+        }
+        public void ReactTo(ISupplement otherSupplement)
+        {
+            if (otherSupplement as WeaponrySkill != null)
+            {
+                this.powerEffect = 10;
+                this.aggressionEffect = 3;
+            }
+        }
+    }
+
+    public class WeaponrySkill : ISupplement
+    {
+        public WeaponrySkill()
+        {
+
+        }
+
+        public int PowerEffect
+        {
+            get { return 0; }
+        }
+
+        public int HealthEffect
+        {
+            get { return 0; }
+        }
+
+        public int AggressionEffect
+        {
+            get { return 0; }
+        }
+        public void ReactTo(ISupplement otherSupplement)
+        {
+           
+        }
+    }
